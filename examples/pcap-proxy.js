@@ -9,6 +9,8 @@ var util = require('util'),
 //
 // Http Server with proxyRequest Handler and Latency
 //
+
+
 var proxy = new httpProxy.createProxyServer();
 
 http.createServer(function (req, res) {
@@ -17,16 +19,17 @@ http.createServer(function (req, res) {
   pcap_session = pcap.createSession("", "ip proto \\tcp");
 
   tcp_tracker.on('start', function (session) {
-  console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);
+      console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);
+      JSON.stringify(session,null,2);
   });
 
   tcp_tracker.on('end', function (session) {
-  console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
+      console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
   });
 
   pcap_session.on('packet', function (raw_packet) {
       var packet = pcap.decode.packet(raw_packet);
-      console.log(JSON.stringify(packet,null,2));
+      //console.log(JSON.stringify(packet,null,2));
       tcp_tracker.track_packet(packet);
   });
 
@@ -36,6 +39,8 @@ http.createServer(function (req, res) {
       target: 'http://localhost:9002'
     });
   }, 200);
+
+
 }).listen(8002);
 
 //
