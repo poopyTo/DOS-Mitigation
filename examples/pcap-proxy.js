@@ -1,7 +1,7 @@
 var util = require('util'),
     colors = require('colors'),
     http = require('http'),
-    httpProxy = require('node-http-proxy'),
+    httpProxy = require('http-proxy'),
     pcap = require('pcap');
 
 
