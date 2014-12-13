@@ -33,7 +33,6 @@ If you run wireshark you will see that no ACK will be sent back.
 
 For an instructional video: https://www.youtube.com/watch?v=Pzy-FwGF_OU
 
-sudo hping3 --flood -S -p 80 192.168.2.135
 
 
 
