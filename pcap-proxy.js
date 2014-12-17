@@ -4,7 +4,8 @@ var util = require('util'),
     httpProxy = require('http-proxy'),
     pcap = require('pcap'),
     pcap_session = pcap.createSession("", "ip proto \\tcp"),
-    fs = require('fs');
+    fs = require('fs'),
+    os = require('os');
 
 //
 // Http Server with proxyRequest Handler and Latency
@@ -21,9 +22,23 @@ Array.prototype.contains = function(elem)
 	return false;
 }
 
+var ifaces = os.networkInterfaces();
+var ipAddr = new Array();
+var ipDrop = new Array();
+var messages = {};
+
+for (var dev in ifaces) {
+	var alias = 0;
+	ifaces[dev].forEach(function(details){
+		if (details.family=='IPv4') {
+			console.log(dev+(alias?':'+alias:''), details.address);
+			ipAddr.push(details.address);
+			++alias;
+		}
+	});
+}
+
 http.createServer(function (req, res) {
-	var ipDrop = new Array();
-	var messages = {};
 
 	tcp_tracker = new pcap.TCP_tracker(),
 
@@ -38,27 +53,37 @@ http.createServer(function (req, res) {
 
 	pcap_session.on('packet', function (raw_packet) {
 		var packet = pcap.decode.packet(raw_packet);
-		var speedLimit = 5; //5ms
+		var countTime = 1000; // 1 second
+		var messageLimit = 500;
 		messages[packet.link.ip.saddr] = messages[packet.link.ip.saddr] || {};
 		
-		if (messages[packet.link.ip.saddr].timestamp && new Date().getTime() - messages[packet.link.ip.saddr].timestamp < speedLimit)
+		if (ipAddr.contains(packet.link.ip.daddr) && packet.link.ip.tcp.dport == '8002')
 			if (!ipDrop.contains(packet.link.ip.saddr)) {
-				ipDrop.push(packet.link.ip.saddr);
-				console.log(packet.link.ip.saddr + ' pushed');
+				if (new Date().getTime() - messages[packet.link.ip.saddr].timestamp < countTime)
+				{
+					messages[packet.link.ip.saddr].count++;
+					if (messages[packet.link.ip.saddr].count > messageLimit) {
+						ipDrop.push(packet.link.ip.saddr);
+						console.log(packet.link.ip.saddr + ' pushed');
+					}
+				}
+				else {
+					messages[packet.link.ip.saddr].timestamp = new Date().getTime();
+					messages[packet.link.ip.saddr].count = 1;
+				}
 			}
-		else messages[packet.link.ip.saddr].timestamp = new Date().getTime();
 		
 		if (!ipDrop.contains(packet.link.ip.saddr)) {
-			console.log("Everything is fine for " + packet.link.ip.saddr);
 			tcp_tracker.track_packet(packet);
 		}
 	});
 
 	setTimeout(function() {
-		if (!ipDrop.contains(req.connection.remoteAddress))
+		if (!ipDrop.contains(req.connection.remoteAddress)) {
 			proxy.web(req, res, {
 				target: 'http://localhost:9002'
 			});
+		}
 		else {
 			res.writeHead(200, { 'Content-Type': 'text/plain' });
 			res.write('Hey, we know about the DOS');
