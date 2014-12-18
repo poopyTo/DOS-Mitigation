@@ -5,7 +5,9 @@ var util = require('util'),
     pcap = require('pcap'),
     pcap_session = pcap.createSession("", "ip proto \\tcp"),
     fs = require('fs'),
-    os = require('os');
+    os = require('os'),
+    exec = require('child_process').exec,
+    sys = require ('sys');
 
 //
 // Http Server with proxyRequest Handler and Latency
@@ -22,6 +24,10 @@ Array.prototype.contains = function(elem)
 	return false;
 }
 
+//
+// Setting IPTables for DOS attack prep
+//
+
 var ifaces = os.networkInterfaces();
 var ipAddr = new Array();
 var ipDrop = new Array();
@@ -34,6 +40,9 @@ for (var dev in ifaces) {
 			console.log(dev+(alias?':'+alias:''), details.address);
 			ipAddr.push(details.address);
 			++alias;
+			var child = exec("sudo iptables -I INPUT -p tcp --dport 8002 -i " + dev + " -m state --state NEW -m recent --set");
+			child = exec("sudo iptables -I INPUT -p tcp --dport 8002 -i " + dev + " -m state --state NEW -m recent --update -- seconds 5 --hitcount 20 -j DROP");
+			child = exec("sudo iptables-save > /etc/iptables.up.rules");
 		}
 	});
 }
@@ -62,9 +71,18 @@ http.createServer(function (req, res) {
 				if (new Date().getTime() - messages[packet.link.ip.saddr].timestamp < countTime)
 				{
 					messages[packet.link.ip.saddr].count++;
-					if (messages[packet.link.ip.saddr].count > messageLimit) {
+					if (messages[packet.link.ip.saddr].count > messageLimit)
+					{
 						ipDrop.push(packet.link.ip.saddr);
 						console.log(packet.link.ip.saddr + ' pushed');
+						var child = exec("sudo tcpkill -i wlan0 host " + packet.link.ip.saddr,
+							function (error, stdout, stderr) {
+								console.log('stdout: ' + stdout);
+								console.log('stderr: ' + stderr);
+								if (error !== null) {
+									console.log('exec error: ' + error);
+								}
+							});
 					}
 				}
 				else {
@@ -73,9 +91,10 @@ http.createServer(function (req, res) {
 				}
 			}
 		
-		if (!ipDrop.contains(packet.link.ip.saddr)) {
+		if (!ipDrop.contains(packet.link.ip.saddr) && ipAddr.contains(packet.link.ip.daddr))
 			tcp_tracker.track_packet(packet);
-		}
+
+		
 	});
 
 	setTimeout(function() {
