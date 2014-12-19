@@ -6,7 +6,7 @@ var util = require('util'),
     pcap_session = pcap.createSession("", "ip proto \\tcp"),
     fs = require('fs'),
     os = require('os'),
-    exec = require('child_process').exec,
+    spawn = require('child_process').spawn,
     sys = require ('sys');
 
 //
@@ -42,7 +42,7 @@ for (var dev in ifaces) {
 			++alias;
 			var child = exec("sudo iptables -I INPUT -p tcp --dport 8002 -i " + dev + " -m state --state NEW -m recent --set");
 			child = exec("sudo iptables -I INPUT -p tcp --dport 8002 -i " + dev + " -m state --state NEW -m recent --update -- seconds 5 --hitcount 20 -j DROP");
-			child = exec("sudo iptables-save > /etc/iptables.up.rules");
+			child = exec("sudo iptables-save | sudo tee /etc/iptables.up.rules");
 		}
 	});
 }
@@ -75,14 +75,7 @@ http.createServer(function (req, res) {
 					{
 						ipDrop.push(packet.link.ip.saddr);
 						console.log(packet.link.ip.saddr + ' pushed');
-						var child = exec("sudo tcpkill -i wlan0 host " + packet.link.ip.saddr,
-							function (error, stdout, stderr) {
-								console.log('stdout: ' + stdout);
-								console.log('stderr: ' + stderr);
-								if (error !== null) {
-									console.log('exec error: ' + error);
-								}
-							});
+						var child = spawn('sudo', ['tcpkill', '-i', 'wlan0', 'host', packet.link.ip.saddr]);
 					}
 				}
 				else {
@@ -93,7 +86,6 @@ http.createServer(function (req, res) {
 		
 		if (!ipDrop.contains(packet.link.ip.saddr) && ipAddr.contains(packet.link.ip.daddr))
 			tcp_tracker.track_packet(packet);
-
 		
 	});
 
