@@ -7,6 +7,7 @@ var util = require('util'),
     fs = require('fs'),
     os = require('os'),
     spawn = require('child_process').spawn,
+    exec = require('child_process').exec,
     sys = require ('sys');
 
 //
